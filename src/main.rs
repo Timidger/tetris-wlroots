@@ -266,6 +266,27 @@ impl Tetris {
         }
         false
     }
+
+    /// Clear any full rows that exist
+    fn clear_full_rows(&mut self) {
+        let mut rows = vec![];
+        'row_check: for (index ,row) in self.board.iter_mut().enumerate() {
+            for block in row.iter_mut() {
+                if block.is_none() {
+                    continue 'row_check
+                }
+            }
+            rows.push(index);
+            *row = [None; BOARD_WIDTH]
+        }
+        for row_index in rows {
+            let mut prev_index = row_index;
+            for above_index in (0..(row_index + 1)).rev() {
+                self.board[prev_index] = self.board[above_index];
+                prev_index = above_index;
+            }
+        }
+    }
 }
 
 fn main() {
@@ -301,6 +322,7 @@ impl OutputHandler for Handler {
                 } else {
                     tetris.current = next_move
                 }
+                tetris.clear_full_rows()
             }
             let (x_res, y_res) = output.effective_resolution();
             let (board_start_x, board_start_y) = (x_res / 4, y_res / 4);
