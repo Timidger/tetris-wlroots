@@ -65,14 +65,26 @@ impl PieceData {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum Piece {
-    Block(PieceData),
-    L(PieceData)
+#[derive(Clone, Copy)]
+enum PieceType {
+    Block,
+    L,
+    I,
+    J,
+    T,
+    S,
+    Z
+}
+
+#[derive(Clone, Copy)]
+struct Piece {
+    data: PieceData,
+    ty: PieceType
 }
 
 impl Piece {
     fn random() -> Self {
+        use PieceType::*;
         loop {
             return match random::<u8>() {
                 0 => {
@@ -80,14 +92,49 @@ impl Piece {
                     let b = Origin::new(0, 1);
                     let c = Origin::new(0, 2);
                     let d = Origin::new(1, 2);
-                    Piece::L(PieceData(a,b,c,d))
+                    Piece{ ty: L, data: PieceData(a,b,c,d) }
                 },
                 1 => {
                     let a = Origin::new(0, 0);
                     let b = Origin::new(1, 0);
                     let c = Origin::new(0, 1);
                     let d = Origin::new(1, 1);
-                    Piece::Block(PieceData(a,b,c,d))
+                    Piece { ty: Block, data: PieceData(a,b,c,d) }
+                },
+                2 => {
+                    let a = Origin::new(0, 0);
+                    let b = Origin::new(0, 1);
+                    let c = Origin::new(0, 2);
+                    let d = Origin::new(0, 3);
+                    Piece { ty: I, data: PieceData(a,b,c,d) }
+                },
+                3 => {
+                    let a = Origin::new(1, 0);
+                    let b = Origin::new(1, 1);
+                    let c = Origin::new(1, 2);
+                    let d = Origin::new(0, 2);
+                    Piece { ty: J, data: PieceData(a,b,c,d) }
+                },
+                4 => {
+                    let a = Origin::new(0, 1);
+                    let b = Origin::new(1, 1);
+                    let c = Origin::new(2, 1);
+                    let d = Origin::new(1, 0);
+                    Piece { ty: T, data: PieceData(a,b,c,d) }
+                },
+                5 => {
+                    let a = Origin::new(0, 1);
+                    let b = Origin::new(1, 1);
+                    let c = Origin::new(1, 0);
+                    let d = Origin::new(2, 0);
+                    Piece { ty: S, data: PieceData(a,b,c,d) }
+                },
+                6 => {
+                    let a = Origin::new(0, 0);
+                    let b = Origin::new(1, 0);
+                    let c = Origin::new(1, 1);
+                    let d = Origin::new(2, 1);
+                    Piece { ty: Z, data: PieceData(a,b,c,d) }
                 }
                 _ => continue
             }
@@ -95,44 +142,38 @@ impl Piece {
     }
 
     /// Simulate moving a piece down
-    fn move_down(self) -> Self {
-        use Piece::*;
-        match self {
-            Block(data) => Block(data.move_down()),
-            L(data) => L(data.move_down())
-        }
+    fn move_down(mut self) -> Self {
+        self.data = self.data.move_down();
+        self
     }
 
-    fn move_right(self) -> Self {
-        use Piece::*;
-        match self {
-            Block(data) => Block(data.move_right()),
-            L(data) => L(data.move_right())
-        }
+    fn move_right(mut self) -> Self {
+        self.data = self.data.move_right();
+        self
     }
 
-    fn move_left(self) -> Self {
-        use Piece::*;
-        match self {
-            Block(data) => Block(data.move_left()),
-            L(data) => L(data.move_left())
-        }
+    fn move_left(mut self) -> Self {
+        self.data = self.data.move_left();
+        self
     }
 
     fn color(self) -> Color {
-        use Piece::*;
-        match self {
-            Block(..) => Color::Blue,
-            L(..) => Color::Orange
+        use PieceType::*;
+        use Color::*;
+        match self.ty {
+            Block => Blue,
+            L => Orange,
+            I => Lime,
+            J => Red,
+            T => Yellow,
+            S => Cyan,
+            Z => Purple
         }
     }
 
     /// Get an iterator over the grid-level coordinates.
     fn coords(self) -> [Origin; 4] {
-        use Piece::*;
-        match self {
-            L(data) | Block(data) => data.coords(),
-        }
+        self.data.coords()
     }
 }
 
@@ -181,7 +222,8 @@ enum Dir {
 
 #[derive(Default, Clone, Copy)]
 struct Handler;
-#[derive(Clone, Copy)]
+
+#[derive(Clone)]
 struct Tetris {
     board: [[Option<Color>; BOARD_WIDTH]; BOARD_HEIGHT],
     current: Piece,
