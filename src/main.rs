@@ -19,6 +19,8 @@ compositor_data!(Tetris);
 
 const BOARD_WIDTH: usize = 10;
 const BOARD_HEIGHT: usize = 20;
+const BOARD_WIDTH_EDGE: usize = BOARD_WIDTH + 1;
+const BOARD_HEIGHT_EDGE: usize = BOARD_HEIGHT + 1;
 
 #[derive(Debug, Clone, Copy)]
 enum Color {
@@ -29,7 +31,9 @@ enum Color {
     Lime,
     Purple,
     Red,
-    Grey
+    Grey,
+    DarkGrey,
+    Black
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -181,20 +185,9 @@ impl Color {
     fn border() -> Self {
         Color::Grey
     }
-    fn random() -> Self {
-        use Color::*;
-        loop {
-            return match random::<u8>() {
-                0 => Cyan,
-                1 => Blue,
-                2 => Orange,
-                3 => Yellow,
-                4 => Lime,
-                5 => Purple,
-                6 => Red,
-                _ => continue
-            }
-        }
+
+    fn background() -> Self {
+        Color::DarkGrey
     }
 }
 
@@ -209,7 +202,9 @@ impl Into<[f32; 4]> for Color {
             Lime => [0.196, 0.80, 0.196, 1.0],
             Purple => [0.33, 0.10, 0.545, 1.0],
             Red => [1.0, 0.0, 0.0, 1.0],
-            Grey => [0.50, 0.50, 0.50, 1.0]
+            Grey => [0.50, 0.50, 0.50, 1.0],
+            DarkGrey => [0.25, 0.25, 0.25, 1.0],
+            Black => [0.0, 0.0, 0.0, 1.0],
         }
     }
 }
@@ -321,14 +316,28 @@ impl OutputHandler for Handler {
             let block_size = Size::new(block_width as i32, block_height as i32);
             for row in 0..(BOARD_WIDTH + 2) {
                 for column in 0..(BOARD_HEIGHT + 2) {
-                    let area = Area::new(Origin::new(board_start_x +
+                    let color = match (row, column) {
+                        (0, _) |
+                        (_, 0) |
+                        (BOARD_WIDTH_EDGE, _) |
+                        (_, BOARD_HEIGHT_EDGE) => Color::border(),
+                        (_, _) => Color::background()
+                    };
+                    let mut area = Area::new(Origin::new(board_start_x +
                                                      (block_width as i32 * row as i32)
                                                      - block_width as i32,
                                                      board_start_y +
                                                      (block_height as i32 * column as i32)
                                                      - block_height as i32),
                                          block_size);
-                    renderer.render_colored_rect(area, Color::border().into(), transform_matrix);
+                    let mut inner_box = area;
+                    inner_box.size.width -= block_width as i32 / 8;
+                    inner_box.origin.x -= block_width as i32 / 8;
+                    inner_box.size.height -= block_height as i32 / 8;
+                    inner_box.origin.y -= block_height as i32 / 8;
+                    renderer.render_scissor(inner_box);
+                    renderer.render_colored_rect(area, color.into(), transform_matrix);
+                    renderer.render_scissor(None);
                 }
             }
             // Render the rows in the board
@@ -344,8 +353,15 @@ impl OutputHandler for Handler {
                         Some(color) => color
                     };
                     let area = Area::new(origin, block_size);
+                    let mut inner_box = area;
+                    inner_box.size.width -= block_width as i32 / 8;
+                    inner_box.origin.x -= block_width as i32 / 8;
+                    inner_box.size.height -= block_height as i32 / 8;
+                    inner_box.origin.y -= block_height as i32 / 8;
+                    renderer.render_scissor(inner_box);
                     origin.x += block_width as i32;
                     renderer.render_colored_rect(area, color.into(), transform_matrix);
+                    renderer.render_scissor(None);
                 }
                 origin.y += block_height as i32;
             }
@@ -355,7 +371,14 @@ impl OutputHandler for Handler {
                 let x = board_start_x + (block_width as i32 * block.x);
                 let y = board_start_y + (block_height as i32 * block.y);
                 let area = Area::new(Origin::new(x, y), block_size);
+                let mut inner_box = area;
+                inner_box.size.width -= block_width as i32 / 8;
+                inner_box.origin.x -= block_width as i32 / 8;
+                inner_box.size.height -= block_height as i32 / 8;
+                inner_box.origin.y -= block_height as i32 / 8;
+                renderer.render_scissor(inner_box);
                 renderer.render_colored_rect(area, current_color.into(), transform_matrix);
+                renderer.render_scissor(None);
             }
         }).unwrap();
     }
