@@ -8,7 +8,9 @@ use std::time::Instant;
 use wlroots::{Area, CompositorBuilder, CompositorHandle, InputManagerHandler, KeyboardHandle,
               KeyboardHandler, Origin, OutputBuilder, OutputBuilderResult, OutputHandle,
               OutputHandler, OutputManagerHandler, Size, key_events::KeyEvent,
-              xkbcommon::xkb::KEY_Escape, WLR_KEY_PRESSED};
+              xkbcommon::xkb::{KEY_Escape, KEY_Down, KEY_Left, KEY_Right}, WLR_KEY_PRESSED};
+
+compositor_data!(Tetris);
 
 const BOARD_WIDTH: usize = 10;
 const BOARD_HEIGHT: usize = 20;
@@ -34,7 +36,23 @@ impl PieceData {
         self.1.y += 1;
         self.2.y += 1;
         self.3.y += 1;
-        PieceData(self.0, self.1, self.2, self.3)
+        self
+    }
+
+    fn move_left(mut self) -> Self {
+        self.0.x -= 1;
+        self.1.x -= 1;
+        self.2.x -= 1;
+        self.3.x -= 1;
+        self
+    }
+
+    fn move_right(mut self) -> Self {
+        self.0.x += 1;
+        self.1.x += 1;
+        self.2.x += 1;
+        self.3.x += 1;
+        self
     }
 
     fn coords(self) -> [Origin; 4] {
@@ -70,12 +88,29 @@ impl Piece {
             }
         }
     }
+
     /// Simulate moving a piece down
     fn move_down(self) -> Self {
         use Piece::*;
         match self {
             Block(data) => Block(data.move_down()),
             L(data) => L(data.move_down())
+        }
+    }
+
+    fn move_right(self) -> Self {
+        use Piece::*;
+        match self {
+            Block(data) => Block(data.move_right()),
+            L(data) => L(data.move_right())
+        }
+    }
+
+    fn move_left(self) -> Self {
+        use Piece::*;
+        match self {
+            Block(data) => Block(data.move_left()),
+            L(data) => L(data.move_left())
         }
     }
 
@@ -133,20 +168,45 @@ impl Into<[f32; 4]> for Color {
     }
 }
 
+#[derive(Clone, Copy)]
+enum Dir {
+    Left,
+    Right
+}
+
 #[derive(Default, Clone, Copy)]
 struct Handler;
 #[derive(Clone, Copy)]
 struct Tetris {
     board: [[Option<Color>; BOARD_WIDTH]; BOARD_HEIGHT],
     current: Piece,
-    time: Instant
+    time: Instant,
+    down: bool
 }
 
 impl Default for Tetris {
     fn default() -> Self {
         Tetris { board: [[None; BOARD_WIDTH]; BOARD_HEIGHT],
                  current: Piece::random(),
-                 time: Instant::now() }
+                 time: Instant::now(),
+                 down: false
+        }
+    }
+}
+
+impl Tetris {
+    /// Attempts to move the current piece in the given direction.
+    ///
+    /// If it would be blocked, then it will not change.
+    fn move_dir(&mut self, dir: Dir) {
+        let next_move = match dir {
+            Dir::Left => self.current.move_left(),
+            Dir::Right => self.current.move_right()
+        };
+        if collide(&self.board, next_move.coords()) {
+            return
+        }
+        self.current = next_move
     }
 }
 
@@ -168,7 +228,8 @@ impl OutputHandler for Handler {
             let nano_delta = delta.subsec_nanos() as u64;
             let ms = (seconds_delta * 1000) + nano_delta / 1000000;
             // Every half second simulate gravity
-            if ms > 500 {
+            if ms > 500 || tetris.down {
+                tetris.down = false;
                 tetris.time = now;
                 let next_move = tetris.current.move_down();
                 // Check we don't collide.
@@ -213,7 +274,10 @@ impl OutputHandler for Handler {
                 origin.x = board_start_x;
                 for block in row.iter_mut() {
                     let color = match *block {
-                        None => continue,
+                        None => {
+                            origin.x += block_width as i32;
+                            continue
+                        },
                         Some(color) => color
                     };
                     let area = Area::new(origin, block_size);
@@ -237,11 +301,24 @@ impl OutputHandler for Handler {
 impl KeyboardHandler for Handler {
     fn on_key(&mut self, compositor: CompositorHandle, keyboard: KeyboardHandle, event: &KeyEvent) {
         with_handles!([(compositor: {compositor})] => {
+            let tetris: &mut Tetris = compositor.into();
             if event.key_state() == WLR_KEY_PRESSED {
                 for key in event.pressed_keys() {
-                    if key == KEY_Escape {
-                        compositor.terminate();
-                        return
+                    match key {
+                        KEY_Escape => wlroots::terminate(),
+                        KEY_Down => {
+                            let mut prev_move = tetris.current;
+                            let mut next_move = tetris.current.move_down();
+                            while !collide(&tetris.board, next_move.coords()) {
+                                prev_move = next_move;
+                                next_move = next_move.move_down();
+                            }
+                            tetris.current = prev_move;
+                            tetris.down = true;
+                        },
+                        KEY_Left => tetris.move_dir(Dir::Left),
+                        KEY_Right => tetris.move_dir(Dir::Right),
+                        _ => {}
                     }
                 }
             }
@@ -270,7 +347,10 @@ impl OutputManagerHandler for Handler {
 /// Determines if the next step collides it the board with a piece
 fn collide(board: &[[Option<Color>; BOARD_WIDTH]; BOARD_HEIGHT], next: [Origin; 4]) -> bool {
     for coord in next.into_iter() {
-        if coord.y >= BOARD_HEIGHT as i32 {
+        if coord.y >= BOARD_HEIGHT as i32 || coord.y < 0{
+            return true
+        }
+        if coord.x >= BOARD_WIDTH as i32 || coord.x < 0 {
             return true
         }
         if board[coord.y as usize][coord.x as usize].is_some() {
