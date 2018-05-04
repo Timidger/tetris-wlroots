@@ -24,16 +24,16 @@ const BOARD_HEIGHT_EDGE: usize = BOARD_HEIGHT + 1;
 
 #[derive(Debug, Clone, Copy)]
 enum Color {
-    Cyan,
     Blue,
+    Purple,
     Orange,
     Yellow,
-    Lime,
-    Purple,
     Red,
     Grey,
     DarkGrey,
-    Black
+    Black,
+    Green,
+    Pink
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -167,11 +167,11 @@ impl Piece {
         match self.ty {
             Block => Blue,
             L => Orange,
-            I => Lime,
+            I => Pink,
             J => Red,
             T => Yellow,
-            S => Cyan,
-            Z => Purple
+            S => Purple,
+            Z => Green
         }
     }
 
@@ -195,13 +195,13 @@ impl Into<[f32; 4]> for Color {
     fn into(self) -> [f32; 4] {
         use Color::*;
         match self {
-            Cyan => [0.0, 1.0, 1.0, 1.0],
             Blue => [0.0, 0.0, 1.0, 1.0],
             Orange => [1.0, 0.0, 0.41, 1.0],
             Yellow => [1.0, 1.0, 0.0, 1.0],
-            Lime => [0.196, 0.80, 0.196, 1.0],
-            Purple => [0.33, 0.10, 0.545, 1.0],
             Red => [1.0, 0.0, 0.0, 1.0],
+            Green => [0.0, 1.0, 0.0, 1.0],
+            Pink => [1.0, 0.4117, 0.713, 1.0],
+            Purple => [0.9333, 0.50980, 0.9333, 1.0],
             Grey => [0.50, 0.50, 0.50, 1.0],
             DarkGrey => [0.25, 0.25, 0.25, 1.0],
             Black => [0.0, 0.0, 0.0, 1.0],
