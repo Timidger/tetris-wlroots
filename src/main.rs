@@ -79,7 +79,7 @@ impl Default for Tetris {
                 *block = Some(Color::random())
             }
         }
-        Tetris { board: [[None; BOARD_WIDTH]; BOARD_HEIGHT],
+        Tetris { board,
                  current: None,
                  time: Instant::now() }
     }
@@ -125,10 +125,14 @@ impl OutputHandler for Handler {
             for row in &mut tetris.board {
                 origin.x = board_start_x;
                 for block in row.iter_mut() {
-                    let block = Area::new(origin,
+                    let color = match *block {
+                        None => continue,
+                        Some(color) => color
+                    };
+                    let area = Area::new(origin,
                                           Size::new(block_width as i32, block_height as i32));
                     origin.x += block_width as i32;
-                    renderer.render_colored_rect(block, Color::random().into(), transform_matrix);
+                    renderer.render_colored_rect(area, color.into(), transform_matrix);
                 }
                 origin.y += block_height as i32;
             }
