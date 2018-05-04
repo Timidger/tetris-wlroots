@@ -1,6 +1,11 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(non_upper_case_globals)]
+
 extern crate rand;
 #[macro_use]
 extern crate wlroots;
+
 
 use rand::random;
 use std::time::Instant;
@@ -203,10 +208,26 @@ impl Tetris {
             Dir::Left => self.current.move_left(),
             Dir::Right => self.current.move_right()
         };
-        if collide(&self.board, next_move.coords()) {
+        if self.collide(next_move.coords()) {
             return
         }
         self.current = next_move
+    }
+
+    /// Determines if the next step collides it the board with a piece
+    fn collide(&self, next: [Origin; 4]) -> bool {
+        for coord in next.into_iter() {
+            if coord.y >= BOARD_HEIGHT as i32 || coord.y < 0{
+                return true
+            }
+            if coord.x >= BOARD_WIDTH as i32 || coord.x < 0 {
+                return true
+            }
+            if self.board[coord.y as usize][coord.x as usize].is_some() {
+                return true
+            }
+        }
+        false
     }
 }
 
@@ -234,7 +255,7 @@ impl OutputHandler for Handler {
                 let next_move = tetris.current.move_down();
                 // Check we don't collide.
                 // If we do, add it to the board and gen next falling piece
-                if collide(&tetris.board, next_move.coords()) {
+                if tetris.collide(next_move.coords()) {
                     let color = tetris.current.color();
                     for coord in tetris.current.coords().into_iter() {
                         tetris.board[coord.y as usize][coord.x as usize] = Some(color);
@@ -309,7 +330,7 @@ impl KeyboardHandler for Handler {
                         KEY_Down => {
                             let mut prev_move = tetris.current;
                             let mut next_move = tetris.current.move_down();
-                            while !collide(&tetris.board, next_move.coords()) {
+                            while !tetris.collide(next_move.coords()) {
                                 prev_move = next_move;
                                 next_move = next_move.move_down();
                             }
@@ -342,20 +363,4 @@ impl OutputManagerHandler for Handler {
                              -> Option<OutputBuilderResult<'output>> {
         Some(builder.build_best_mode(Handler))
     }
-}
-
-/// Determines if the next step collides it the board with a piece
-fn collide(board: &[[Option<Color>; BOARD_WIDTH]; BOARD_HEIGHT], next: [Origin; 4]) -> bool {
-    for coord in next.into_iter() {
-        if coord.y >= BOARD_HEIGHT as i32 || coord.y < 0{
-            return true
-        }
-        if coord.x >= BOARD_WIDTH as i32 || coord.x < 0 {
-            return true
-        }
-        if board[coord.y as usize][coord.x as usize].is_some() {
-            return true
-        }
-    }
-    false
 }
