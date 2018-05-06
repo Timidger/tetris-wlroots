@@ -6,14 +6,14 @@ extern crate rand;
 #[macro_use]
 extern crate wlroots;
 
-
 use rand::random;
 use std::time::Instant;
 
 use wlroots::{Area, CompositorBuilder, CompositorHandle, InputManagerHandler, KeyboardHandle,
               KeyboardHandler, Origin, OutputBuilder, OutputBuilderResult, OutputHandle,
               OutputHandler, OutputManagerHandler, Size, key_events::KeyEvent,
-              xkbcommon::xkb::{KEY_Escape, KEY_Down, KEY_Left, KEY_Right}, WLR_KEY_PRESSED};
+              xkbcommon::xkb::{KEY_Down, KEY_Escape, KEY_Left, KEY_Right, KEY_x, KEY_z},
+              WLR_KEY_PRESSED};
 
 compositor_data!(Tetris);
 
@@ -63,10 +63,6 @@ impl PieceData {
         self.3.x += 1;
         self
     }
-
-    fn coords(self) -> [Origin; 4] {
-        [self.0, self.1, self.2, self.3]
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -80,90 +76,136 @@ enum PieceType {
     Z
 }
 
+impl PieceType {
+    fn origin(self) -> PieceData {
+        use PieceType::*;
+        match self {
+            S => {
+                let a = Origin::new(0, 1);
+                let b = Origin::new(1, 1);
+                let c = Origin::new(1, 0);
+                let d = Origin::new(2, 0);
+                PieceData(a, b, c, d)
+
+            }
+            Block => {
+                let a = Origin::new(0, 0);
+                let b = Origin::new(1, 0);
+                let c = Origin::new(0, 1);
+                let d = Origin::new(1, 1);
+                PieceData(a, b, c, d)
+
+            },
+            L => {
+                let a = Origin::new(0, 0);
+                let b = Origin::new(0, 1);
+                let c = Origin::new(0, 2);
+                let d = Origin::new(1, 2);
+                PieceData(a, b, c, d)
+            },
+            I => {
+                let a = Origin::new(0, 0);
+                let b = Origin::new(0, 1);
+                let c = Origin::new(0, 2);
+                let d = Origin::new(0, 3);
+                PieceData(a, b, c, d)
+            },
+            J => {
+                let a = Origin::new(1, 0);
+                let b = Origin::new(1, 1);
+                let c = Origin::new(1, 2);
+                let d = Origin::new(0, 2);
+                PieceData(a, b, c, d)
+            },
+            T => {
+                let a = Origin::new(0, 1);
+                let b = Origin::new(1, 1);
+                let c = Origin::new(1, 0);
+                let d = Origin::new(2, 0);
+                PieceData(a, b, c, d)
+            },
+            Z => {
+                let a = Origin::new(0, 0);
+                let b = Origin::new(1, 0);
+                let c = Origin::new(1, 1);
+                let d = Origin::new(2, 1);
+                PieceData(a, b, c, d)
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Piece {
     data: PieceData,
+    x_offset: i32,
+    y_offset: i32,
     ty: PieceType
 }
 
 impl Piece {
     fn random() -> Self {
         use PieceType::*;
-        loop {
-            return match random::<u8>() {
-                0 => {
-                    let a = Origin::new(0, 0);
-                    let b = Origin::new(0, 1);
-                    let c = Origin::new(0, 2);
-                    let d = Origin::new(1, 2);
-                    Piece{ ty: L, data: PieceData(a,b,c,d) }
-                },
-                1 => {
-                    let a = Origin::new(0, 0);
-                    let b = Origin::new(1, 0);
-                    let c = Origin::new(0, 1);
-                    let d = Origin::new(1, 1);
-                    Piece { ty: Block, data: PieceData(a,b,c,d) }
-                },
-                2 => {
-                    let a = Origin::new(0, 0);
-                    let b = Origin::new(0, 1);
-                    let c = Origin::new(0, 2);
-                    let d = Origin::new(0, 3);
-                    Piece { ty: I, data: PieceData(a,b,c,d) }
-                },
-                3 => {
-                    let a = Origin::new(1, 0);
-                    let b = Origin::new(1, 1);
-                    let c = Origin::new(1, 2);
-                    let d = Origin::new(0, 2);
-                    Piece { ty: J, data: PieceData(a,b,c,d) }
-                },
-                4 => {
-                    let a = Origin::new(0, 1);
-                    let b = Origin::new(1, 1);
-                    let c = Origin::new(2, 1);
-                    let d = Origin::new(1, 0);
-                    Piece { ty: T, data: PieceData(a,b,c,d) }
-                },
-                5 => {
-                    let a = Origin::new(0, 1);
-                    let b = Origin::new(1, 1);
-                    let c = Origin::new(1, 0);
-                    let d = Origin::new(2, 0);
-                    Piece { ty: S, data: PieceData(a,b,c,d) }
-                },
-                6 => {
-                    let a = Origin::new(0, 0);
-                    let b = Origin::new(1, 0);
-                    let c = Origin::new(1, 1);
-                    let d = Origin::new(2, 1);
-                    Piece { ty: Z, data: PieceData(a,b,c,d) }
-                }
+        let ty = loop {
+            match random::<u8>() {
+                0 => break L,
+                1 => break Block,
+                2 => break I,
+                3 => break J,
+                4 => break T,
+                5 => break S,
+                6 => break Z,
                 _ => continue
-            }
-        }
+            };
+        };
+        Piece { ty, x_offset: 0, y_offset: 0, data: ty.origin() }
     }
 
     /// Simulate moving a piece down
     fn move_down(mut self) -> Self {
-        self.data = self.data.move_down();
+        self.y_offset += 1;
         self
     }
 
     fn move_right(mut self) -> Self {
-        self.data = self.data.move_right();
+        self.x_offset += 1;
         self
     }
 
     fn move_left(mut self) -> Self {
-        self.data = self.data.move_left();
+        self.x_offset -= 1;
+        self
+    }
+
+    fn rotate(mut self, dir: Dir) -> Self {
+        {
+            let mut data = [&mut self.data.0,
+                        &mut self.data.1,
+                        &mut self.data.2,
+                        &mut self.data.3];
+            match dir {
+                Dir::Right => {
+                    for ref mut d in data.iter_mut() {
+                        let temp = -d.x;
+                        d.x = d.y;
+                        d.y = temp;
+                    }
+                },
+                Dir::Left => {
+                    for ref mut d in data.iter_mut() {
+                        let temp = -d.y;
+                        d.y = d.x;
+                        d.x = temp;
+                    }
+                }
+            }
+        }
         self
     }
 
     fn color(self) -> Color {
-        use PieceType::*;
         use Color::*;
+        use PieceType::*;
         match self.ty {
             Block => Blue,
             L => Orange,
@@ -177,7 +219,15 @@ impl Piece {
 
     /// Get an iterator over the grid-level coordinates.
     fn coords(self) -> [Origin; 4] {
-        self.data.coords()
+        let mut res = [self.data.0,
+                       self.data.1,
+                       self.data.2,
+                       self.data.3];
+        for origin in &mut res {
+            origin.x += self.x_offset;
+            origin.y += self.y_offset;
+        }
+        res
     }
 }
 
@@ -204,7 +254,7 @@ impl Into<[f32; 4]> for Color {
             Purple => [0.9333, 0.50980, 0.9333, 1.0],
             Grey => [0.50, 0.50, 0.50, 1.0],
             DarkGrey => [0.25, 0.25, 0.25, 1.0],
-            Black => [0.0, 0.0, 0.0, 1.0],
+            Black => [0.0, 0.0, 0.0, 1.0]
         }
     }
 }
@@ -231,8 +281,7 @@ impl Default for Tetris {
         Tetris { board: [[None; BOARD_WIDTH]; BOARD_HEIGHT],
                  current: Piece::random(),
                  time: Instant::now(),
-                 down: false
-        }
+                 down: false }
     }
 }
 
@@ -251,10 +300,21 @@ impl Tetris {
         self.current = next_move
     }
 
+    /// Attempt to rotate the current piece in the given direction.
+    ///
+    /// If it would be blocked, then it will not change.
+    fn rotate(&mut self, dir: Dir) {
+        let next_move = self.current.rotate(dir);
+        if self.collide(next_move.coords()) {
+            return
+        }
+        self.current = next_move
+    }
+
     /// Determines if the next step collides it the board with a piece
     fn collide(&self, next: [Origin; 4]) -> bool {
         for coord in next.into_iter() {
-            if coord.y >= BOARD_HEIGHT as i32 || coord.y < 0{
+            if coord.y >= BOARD_HEIGHT as i32 || coord.y < 0 {
                 return true
             }
             if coord.x >= BOARD_WIDTH as i32 || coord.x < 0 {
@@ -270,7 +330,7 @@ impl Tetris {
     /// Clear any full rows that exist
     fn clear_full_rows(&mut self) {
         let mut rows = vec![];
-        'row_check: for (index ,row) in self.board.iter_mut().enumerate() {
+        'row_check: for (index, row) in self.board.iter_mut().enumerate() {
             for block in row.iter_mut() {
                 if block.is_none() {
                     continue 'row_check
@@ -426,6 +486,8 @@ impl KeyboardHandler for Handler {
                         },
                         KEY_Left => tetris.move_dir(Dir::Left),
                         KEY_Right => tetris.move_dir(Dir::Right),
+                        KEY_z => tetris.rotate(Dir::Left),
+                        KEY_x => tetris.rotate(Dir::Right),
                         _ => {}
                     }
                 }
