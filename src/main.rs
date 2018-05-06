@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
 #![allow(non_upper_case_globals)]
 
 extern crate rand;
@@ -31,39 +29,12 @@ enum Color {
     Red,
     Grey,
     DarkGrey,
-    Black,
     Green,
     Pink
 }
 
 #[derive(Default, Debug, Clone, Copy)]
 struct PieceData(Origin, Origin, Origin, Origin);
-
-impl PieceData {
-    fn move_down(mut self) -> Self {
-        self.0.y += 1;
-        self.1.y += 1;
-        self.2.y += 1;
-        self.3.y += 1;
-        self
-    }
-
-    fn move_left(mut self) -> Self {
-        self.0.x -= 1;
-        self.1.x -= 1;
-        self.2.x -= 1;
-        self.3.x -= 1;
-        self
-    }
-
-    fn move_right(mut self) -> Self {
-        self.0.x += 1;
-        self.1.x += 1;
-        self.2.x += 1;
-        self.3.x += 1;
-        self
-    }
-}
 
 #[derive(Clone, Copy)]
 enum PieceType {
@@ -254,7 +225,6 @@ impl Into<[f32; 4]> for Color {
             Purple => [0.9333, 0.50980, 0.9333, 1.0],
             Grey => [0.50, 0.50, 0.50, 1.0],
             DarkGrey => [0.25, 0.25, 0.25, 1.0],
-            Black => [0.0, 0.0, 0.0, 1.0]
         }
     }
 }
@@ -386,7 +356,6 @@ impl OutputHandler for Handler {
             }
             let (x_res, y_res) = output.effective_resolution();
             let (board_start_x, board_start_y) = (x_res / 4, y_res / 4);
-            let (board_end_x, board_end_y) = (x_res - x_res / 4, y_res - y_res / 4);
             let renderer = compositor.renderer.as_mut().expect("No renderer");
             let mut renderer = renderer.render(output, None);
             let transform_matrix = renderer.output.transform_matrix();
@@ -467,7 +436,7 @@ impl OutputHandler for Handler {
 }
 
 impl KeyboardHandler for Handler {
-    fn on_key(&mut self, compositor: CompositorHandle, keyboard: KeyboardHandle, event: &KeyEvent) {
+    fn on_key(&mut self, compositor: CompositorHandle, _: KeyboardHandle, event: &KeyEvent) {
         with_handles!([(compositor: {compositor})] => {
             let tetris: &mut Tetris = compositor.into();
             if event.key_state() == WLR_KEY_PRESSED {
@@ -498,8 +467,8 @@ impl KeyboardHandler for Handler {
 
 impl InputManagerHandler for Handler {
     fn keyboard_added(&mut self,
-                      compositor: CompositorHandle,
-                      keyboard: KeyboardHandle)
+                      _: CompositorHandle,
+                      _: KeyboardHandle)
                       -> Option<Box<KeyboardHandler>> {
         Some(Box::new(Handler))
     }
@@ -507,7 +476,7 @@ impl InputManagerHandler for Handler {
 
 impl OutputManagerHandler for Handler {
     fn output_added<'output>(&mut self,
-                             compositor: CompositorHandle,
+                             _: CompositorHandle,
                              builder: OutputBuilder<'output>)
                              -> Option<OutputBuilderResult<'output>> {
         Some(builder.build_best_mode(Handler))
