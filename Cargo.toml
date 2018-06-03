@@ -9,5 +9,5 @@ license = "MIT"
 authors = ["Timidger <APragmaticPlace@gmail.com>"]
 
 [dependencies]
-wlroots = { path = "../wlroots-rs" }
+wlroots = { branch="damage-tracking", git = "https://github.com/swaywm/wlroots-rs/" }
 rand = "*"
