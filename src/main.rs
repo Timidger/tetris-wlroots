@@ -357,7 +357,7 @@ impl OutputHandler for Handler {
             let (x_res, y_res) = output.effective_resolution();
             let (board_start_x, board_start_y) = (x_res / 4, y_res / 4);
             let renderer = compositor.renderer.as_mut().expect("No renderer");
-            let mut renderer = renderer.render(output, None).unwrap();
+            let mut renderer = renderer.render(output, None);
             let transform_matrix = renderer.output.transform_matrix();
             renderer.clear([0.0, 0.0, 0.0, 1.0]);
             let scale = 4.0;
