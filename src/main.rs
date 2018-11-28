@@ -364,7 +364,7 @@ impl OutputHandler for Handler {
             let nano_delta = delta.subsec_nanos() as u64;
             let ms = (seconds_delta * 1000) + nano_delta / 1000000;
             // Every half second simulate gravity
-            if ms > 500 || tetris.down {
+            if (ms > 500 || tetris.down) && !tetris.lost {
                 tetris.down = false;
                 tetris.time = now;
                 let next_move = tetris.current.move_down();
@@ -383,6 +383,9 @@ impl OutputHandler for Handler {
                     tetris.current = next_move
                 }
                 tetris.clear_full_rows()
+            }
+            if ms > 1500 && tetris.lost {
+                *tetris = Tetris::default()
             }
             let (x_res, y_res) = output.effective_resolution();
             let (board_start_x, board_start_y) = (x_res / 4, y_res / 4);
