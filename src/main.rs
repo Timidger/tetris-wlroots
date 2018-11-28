@@ -145,7 +145,9 @@ impl Piece {
     fn random() -> Self {
         let ty: PieceType = random();
         let data = ty.origin();
-        Piece { ty, x_offset: 0, y_offset: 0, center: data.center(), data }
+        let center = data.center();
+        let x_offset = BOARD_WIDTH as i32 / 2 - center.x;
+        Piece { ty, x_offset, y_offset: 0, center, data }
     }
 
     /// Simulate moving a piece down
