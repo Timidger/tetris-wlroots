@@ -92,7 +92,7 @@ impl PieceType {
                 let a = Origin::new(0, 1);
                 let b = Origin::new(1, 1);
                 let c = Origin::new(1, 0);
-                let d = Origin::new(2, 0);
+                let d = Origin::new(2, 1);
                 PieceData(a, b, c, d)
             },
             Z => {
