@@ -4,7 +4,7 @@ extern crate rand;
 #[macro_use]
 extern crate wlroots;
 
-use rand::random;
+use rand::{Rand, Rng, random};
 use std::time::Instant;
 
 use wlroots::{Area, CompositorBuilder, CompositorHandle, InputManagerHandler, KeyboardHandle,
@@ -106,6 +106,21 @@ impl PieceType {
     }
 }
 
+impl Rand for PieceType {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        use PieceType::*;
+        match rng.gen_range(0, 7) {
+            0 => L,
+            1 => Block,
+            2 => I,
+            3 => J,
+            4 => T,
+            5 => S,
+            _ => Z
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Piece {
     data: PieceData,
@@ -116,19 +131,7 @@ struct Piece {
 
 impl Piece {
     fn random() -> Self {
-        use PieceType::*;
-        let ty = loop {
-            match random::<u8>() {
-                0 => break L,
-                1 => break Block,
-                2 => break I,
-                3 => break J,
-                4 => break T,
-                5 => break S,
-                6 => break Z,
-                _ => continue
-            };
-        };
+        let ty = random();
         Piece { ty, x_offset: 0, y_offset: 0, data: ty.origin() }
     }
 
