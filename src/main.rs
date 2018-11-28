@@ -30,7 +30,8 @@ enum Color {
     Grey,
     DarkGrey,
     Green,
-    Pink
+    Pink,
+    TransparentRed
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -229,6 +230,10 @@ impl Color {
     fn background() -> Self {
         Color::DarkGrey
     }
+
+    fn dead() -> Self {
+        Color::TransparentRed
+    }
 }
 
 impl Into<[f32; 4]> for Color {
@@ -244,6 +249,7 @@ impl Into<[f32; 4]> for Color {
             Purple => [0.9333, 0.50980, 0.9333, 1.0],
             Grey => [0.50, 0.50, 0.50, 1.0],
             DarkGrey => [0.25, 0.25, 0.25, 1.0],
+            TransparentRed => [0.5, 0.0, 0.0, 0.1],
         }
     }
 }
@@ -262,7 +268,8 @@ struct Tetris {
     board: [[Option<Color>; BOARD_WIDTH]; BOARD_HEIGHT],
     current: Piece,
     time: Instant,
-    down: bool
+    down: bool,
+    lost: bool
 }
 
 impl Default for Tetris {
@@ -270,7 +277,8 @@ impl Default for Tetris {
         Tetris { board: [[None; BOARD_WIDTH]; BOARD_HEIGHT],
                  current: Piece::random(),
                  time: Instant::now(),
-                 down: false }
+                 down: false,
+                 lost: false }
     }
 }
 
@@ -367,7 +375,10 @@ impl OutputHandler for Handler {
                     for coord in tetris.current.coords().into_iter() {
                         tetris.board[coord.y as usize][coord.x as usize] = Some(color);
                     }
-                    tetris.current = Piece::random()
+                    tetris.current = Piece::random();
+                    if tetris.collide(tetris.current.coords()) {
+                        tetris.lost = true;
+                    }
                 } else {
                     tetris.current = next_move
                 }
@@ -448,6 +459,13 @@ impl OutputHandler for Handler {
                 inner_box.origin.y -= block_height as i32 / 8;
                 renderer.render_scissor(inner_box);
                 renderer.render_colored_rect(area, current_color.into(), transform_matrix);
+                renderer.render_scissor(None);
+            }
+            // Render something indicating "you died"
+            if tetris.lost {
+                let area = Area::new(Origin::new(0, 0), Size::new(x_res, y_res));
+                renderer.render_scissor(area);
+                renderer.render_colored_rect(area, Color::dead().into(), transform_matrix);
                 renderer.render_scissor(None);
             }
         }).unwrap();
