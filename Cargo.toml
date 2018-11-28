@@ -9,5 +9,5 @@ license = "MIT"
 authors = ["Timidger <APragmaticPlace@gmail.com>"]
 
 [dependencies]
-wlroots = { git = "https://github.com/swaywm/wlroots-rs/", branch = "scissor-render" }
+wlroots = { git = "https://github.com/swaywm/wlroots-rs/" }
 rand = "0.4"
