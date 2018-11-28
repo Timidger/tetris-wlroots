@@ -36,6 +36,17 @@ enum Color {
 #[derive(Default, Debug, Clone, Copy)]
 struct PieceData(Origin, Origin, Origin, Origin);
 
+impl PieceData {
+    fn center(&self) -> Origin {
+        let mut sum = Origin::new(0, 0);
+        for point in [self.0, self.1, self.2, self.3].iter() {
+            sum.x += point.x;
+            sum.y += point.y;
+        }
+        return Origin::new((sum.x + 2) / 4, (sum.y + 2) / 4);
+    }
+}
+
 #[derive(Clone, Copy)]
 enum PieceType {
     Block,
@@ -126,13 +137,15 @@ struct Piece {
     data: PieceData,
     x_offset: i32,
     y_offset: i32,
+    center: Origin,
     ty: PieceType
 }
 
 impl Piece {
     fn random() -> Self {
-        let ty = random();
-        Piece { ty, x_offset: 0, y_offset: 0, data: ty.origin() }
+        let ty: PieceType = random();
+        let data = ty.origin();
+        Piece { ty, x_offset: 0, y_offset: 0, center: data.center(), data }
     }
 
     /// Simulate moving a piece down
@@ -153,6 +166,7 @@ impl Piece {
 
     fn rotate(mut self, dir: Dir) -> Self {
         {
+            let center = self.center;
             let mut data = [&mut self.data.0,
                         &mut self.data.1,
                         &mut self.data.2,
@@ -160,15 +174,15 @@ impl Piece {
             match dir {
                 Dir::Right => {
                     for ref mut d in data.iter_mut() {
-                        let temp = -d.x;
-                        d.x = d.y;
+                        let temp = -(d.x - center.x) + center.y;
+                        d.x = d.y - center.y + center.x;
                         d.y = temp;
                     }
                 },
                 Dir::Left => {
                     for ref mut d in data.iter_mut() {
-                        let temp = -d.y;
-                        d.y = d.x;
+                        let temp = -(d.y - center.y) + center.x;
+                        d.y = d.x - center.x + center.y;
                         d.x = temp;
                     }
                 }
