@@ -4,7 +4,7 @@ extern crate rand;
 #[macro_use]
 extern crate wlroots;
 
-use rand::random;
+use rand::{Rand, Rng, random};
 use std::time::Instant;
 
 use wlroots::{Area, CompositorBuilder, CompositorHandle, InputManagerHandler, KeyboardHandle,
@@ -30,11 +30,23 @@ enum Color {
     Grey,
     DarkGrey,
     Green,
-    Pink
+    Pink,
+    TransparentRed
 }
 
 #[derive(Default, Debug, Clone, Copy)]
 struct PieceData(Origin, Origin, Origin, Origin);
+
+impl PieceData {
+    fn center(&self) -> Origin {
+        let mut sum = Origin::new(0, 0);
+        for point in [self.0, self.1, self.2, self.3].iter() {
+            sum.x += point.x;
+            sum.y += point.y;
+        }
+        return Origin::new((sum.x + 2) / 4, (sum.y + 2) / 4);
+    }
+}
 
 #[derive(Clone, Copy)]
 enum PieceType {
@@ -92,7 +104,7 @@ impl PieceType {
                 let a = Origin::new(0, 1);
                 let b = Origin::new(1, 1);
                 let c = Origin::new(1, 0);
-                let d = Origin::new(2, 0);
+                let d = Origin::new(2, 1);
                 PieceData(a, b, c, d)
             },
             Z => {
@@ -106,30 +118,37 @@ impl PieceType {
     }
 }
 
+impl Rand for PieceType {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        use PieceType::*;
+        match rng.gen_range(0, 7) {
+            0 => L,
+            1 => Block,
+            2 => I,
+            3 => J,
+            4 => T,
+            5 => S,
+            _ => Z
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Piece {
     data: PieceData,
     x_offset: i32,
     y_offset: i32,
+    center: Origin,
     ty: PieceType
 }
 
 impl Piece {
     fn random() -> Self {
-        use PieceType::*;
-        let ty = loop {
-            match random::<u8>() {
-                0 => break L,
-                1 => break Block,
-                2 => break I,
-                3 => break J,
-                4 => break T,
-                5 => break S,
-                6 => break Z,
-                _ => continue
-            };
-        };
-        Piece { ty, x_offset: 0, y_offset: 0, data: ty.origin() }
+        let ty: PieceType = random();
+        let data = ty.origin();
+        let center = data.center();
+        let x_offset = BOARD_WIDTH as i32 / 2 - center.x;
+        Piece { ty, x_offset, y_offset: 0, center, data }
     }
 
     /// Simulate moving a piece down
@@ -150,6 +169,7 @@ impl Piece {
 
     fn rotate(mut self, dir: Dir) -> Self {
         {
+            let center = self.center;
             let mut data = [&mut self.data.0,
                         &mut self.data.1,
                         &mut self.data.2,
@@ -157,15 +177,15 @@ impl Piece {
             match dir {
                 Dir::Right => {
                     for ref mut d in data.iter_mut() {
-                        let temp = -d.x;
-                        d.x = d.y;
+                        let temp = -(d.x - center.x) + center.y;
+                        d.x = d.y - center.y + center.x;
                         d.y = temp;
                     }
                 },
                 Dir::Left => {
                     for ref mut d in data.iter_mut() {
-                        let temp = -d.y;
-                        d.y = d.x;
+                        let temp = -(d.y - center.y) + center.x;
+                        d.y = d.x - center.x + center.y;
                         d.x = temp;
                     }
                 }
@@ -210,6 +230,10 @@ impl Color {
     fn background() -> Self {
         Color::DarkGrey
     }
+
+    fn dead() -> Self {
+        Color::TransparentRed
+    }
 }
 
 impl Into<[f32; 4]> for Color {
@@ -225,6 +249,7 @@ impl Into<[f32; 4]> for Color {
             Purple => [0.9333, 0.50980, 0.9333, 1.0],
             Grey => [0.50, 0.50, 0.50, 1.0],
             DarkGrey => [0.25, 0.25, 0.25, 1.0],
+            TransparentRed => [0.5, 0.0, 0.0, 0.1],
         }
     }
 }
@@ -243,7 +268,8 @@ struct Tetris {
     board: [[Option<Color>; BOARD_WIDTH]; BOARD_HEIGHT],
     current: Piece,
     time: Instant,
-    down: bool
+    down: bool,
+    lost: bool
 }
 
 impl Default for Tetris {
@@ -251,7 +277,8 @@ impl Default for Tetris {
         Tetris { board: [[None; BOARD_WIDTH]; BOARD_HEIGHT],
                  current: Piece::random(),
                  time: Instant::now(),
-                 down: false }
+                 down: false,
+                 lost: false }
     }
 }
 
@@ -337,7 +364,7 @@ impl OutputHandler for Handler {
             let nano_delta = delta.subsec_nanos() as u64;
             let ms = (seconds_delta * 1000) + nano_delta / 1000000;
             // Every half second simulate gravity
-            if ms > 500 || tetris.down {
+            if (ms > 500 || tetris.down) && !tetris.lost {
                 tetris.down = false;
                 tetris.time = now;
                 let next_move = tetris.current.move_down();
@@ -348,11 +375,17 @@ impl OutputHandler for Handler {
                     for coord in tetris.current.coords().into_iter() {
                         tetris.board[coord.y as usize][coord.x as usize] = Some(color);
                     }
-                    tetris.current = Piece::random()
+                    tetris.current = Piece::random();
+                    if tetris.collide(tetris.current.coords()) {
+                        tetris.lost = true;
+                    }
                 } else {
                     tetris.current = next_move
                 }
                 tetris.clear_full_rows()
+            }
+            if ms > 1500 && tetris.lost {
+                *tetris = Tetris::default()
             }
             let (x_res, y_res) = output.effective_resolution();
             let (board_start_x, board_start_y) = (x_res / 4, y_res / 4);
@@ -429,6 +462,13 @@ impl OutputHandler for Handler {
                 inner_box.origin.y -= block_height as i32 / 8;
                 renderer.render_scissor(inner_box);
                 renderer.render_colored_rect(area, current_color.into(), transform_matrix);
+                renderer.render_scissor(None);
+            }
+            // Render something indicating "you died"
+            if tetris.lost {
+                let area = Area::new(Origin::new(0, 0), Size::new(x_res, y_res));
+                renderer.render_scissor(area);
+                renderer.render_colored_rect(area, Color::dead().into(), transform_matrix);
                 renderer.render_scissor(None);
             }
         }).unwrap();
