@@ -12,7 +12,8 @@ use std::time::Instant;
 use wlroots::{Area, CompositorBuilder, CompositorHandle, InputManagerHandler, KeyboardHandle,
               KeyboardHandler, Origin, OutputBuilder, OutputBuilderResult, OutputHandle,
               OutputHandler, OutputManagerHandler, Size, key_events::KeyEvent,
-              xkbcommon::xkb::{KEY_Down, KEY_Escape, KEY_Left, KEY_Right, KEY_x, KEY_z},
+              xkbcommon::xkb::{KEY_Down, KEY_Escape, KEY_Left, KEY_Right, KEY_q as KEY_x, KEY_semicolon as KEY_z,
+                               KEY_r, KEY_space},
               WLR_KEY_PRESSED};
 
 compositor_data!(Tetris);
@@ -33,7 +34,8 @@ enum Color {
     DarkGrey,
     Green,
     Pink,
-    TransparentRed
+    TransparentRed,
+    TransparentBlue
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -236,6 +238,10 @@ impl Color {
     fn dead() -> Self {
         Color::TransparentRed
     }
+
+    fn paused() -> Self {
+        Color::TransparentBlue
+    }
 }
 
 impl Into<[f32; 4]> for Color {
@@ -252,6 +258,7 @@ impl Into<[f32; 4]> for Color {
             Grey => [0.50, 0.50, 0.50, 1.0],
             DarkGrey => [0.25, 0.25, 0.25, 1.0],
             TransparentRed => [0.5, 0.0, 0.0, 0.1],
+            TransparentBlue => [0.0, 0.0, 0.5, 0.1],
         }
     }
 }
@@ -272,6 +279,7 @@ struct Tetris {
     time: Instant,
     down: bool,
     lost: bool,
+    pause: bool,
     font: Font<'static>,
     score: usize
 }
@@ -286,6 +294,7 @@ impl Default for Tetris {
                  time: Instant::now(),
                  down: false,
                  lost: false,
+                 pause: false,
                  font,
                  score: 0 }
     }
@@ -374,7 +383,7 @@ impl OutputHandler for Handler {
             let nano_delta = delta.subsec_nanos() as u64;
             let ms = (seconds_delta * 1000) + nano_delta / 1000000;
             // Every half second simulate gravity
-            if (ms > 500 || tetris.down) && !tetris.lost {
+            if (ms > 500 || tetris.down) && !tetris.lost && !tetris.pause {
                 tetris.down = false;
                 tetris.time = now;
                 let next_move = tetris.current.move_down();
@@ -481,6 +490,12 @@ impl OutputHandler for Handler {
                 renderer.render_colored_rect(area, Color::dead().into(), transform_matrix);
                 renderer.render_scissor(None);
             }
+            if tetris.pause {
+                let area = Area::new(Origin::new(0, 0), Size::new(x_res, y_res));
+                renderer.render_scissor(area);
+                renderer.render_colored_rect(area, Color::paused().into(), transform_matrix);
+                renderer.render_scissor(None);
+            }
             // Render score
             let scale = Scale::uniform(32.0);
             let mut area = Area::new(Origin::new(0, 0), Size::new(block_width, block_height));
@@ -505,29 +520,27 @@ impl OutputHandler for Handler {
             };
             // Loop through the glyphs in the text, positing each one on a line
             for glyph in glyphs {
-                if let Some(bounding_box) = glyph.pixel_bounding_box() {
-                    // Draw the glyph into the image per-pixel by using the draw closure
-                    let mut bytes = vec![0u8; (glyphs_width * 4 * glyphs_height) as usize];
-                    glyph.draw(|x, y, v| {
-                        let index = ((x * 4) + (y * glyphs_width * 4) ) as usize;
-                        bytes[index + 0] = (v * 255.0) as u8;
-                        bytes[index + 1] = (v * 255.0) as u8;
-                        bytes[index+ 2] = (v * 255.0) as u8;
-                    });
-                    let texture = renderer.create_texture_from_pixels(wlroots::wl_shm_format::WL_SHM_FORMAT_ARGB8888,
-                                                                      glyphs_width * 4,
-                                                                      glyphs_width,
-                                                                      glyphs_height,
-                                                                      &bytes)
-                        .expect("Could not construct texture");
-                    let transform = renderer.output.get_transform().invert();
-                    let matrix = wlroots::project_box(area,
-                                                      transform,
-                                                      0.0,
-                                                      renderer.output.transform_matrix());
-                    area.origin.x += area.size.width / 2 ;
-                    renderer.render_texture_with_matrix(&texture, matrix);
-                }
+                // Draw the glyph into the image per-pixel by using the draw closure
+                let mut bytes = vec![0u8; (glyphs_width * 4 * glyphs_height) as usize];
+                glyph.draw(|x, y, v| {
+                    let index = ((x * 4) + (y * glyphs_width * 4) ) as usize;
+                    bytes[index + 0] = (v * 255.0) as u8;
+                    bytes[index + 1] = (v * 255.0) as u8;
+                    bytes[index+ 2] = (v * 255.0) as u8;
+                });
+                let texture = renderer.create_texture_from_pixels(wlroots::wl_shm_format::WL_SHM_FORMAT_ARGB8888,
+                                                                    glyphs_width * 4,
+                                                                    glyphs_width,
+                                                                    glyphs_height,
+                                                                    &bytes)
+                    .expect("Could not construct texture");
+                let transform = renderer.output.get_transform().invert();
+                let matrix = wlroots::project_box(area,
+                                                    transform,
+                                                    0.0,
+                                                    renderer.output.transform_matrix());
+                area.origin.x += area.size.width / 2 ;
+                renderer.render_texture_with_matrix(&texture, matrix);
             }
         }).unwrap();
     }
@@ -551,6 +564,8 @@ impl KeyboardHandler for Handler {
                             tetris.current = prev_move;
                             tetris.down = true;
                         },
+                        KEY_r => *tetris = Tetris::default(),
+                        KEY_space => tetris.pause = !tetris.pause,
                         KEY_Left => tetris.move_dir(Dir::Left),
                         KEY_Right => tetris.move_dir(Dir::Right),
                         KEY_z => tetris.rotate(Dir::Left),
