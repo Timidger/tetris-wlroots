@@ -421,7 +421,6 @@ impl OutputHandler for Handler {
                 for column in 0..(BOARD_HEIGHT + 2) {
                     let color = match (row, column) {
                         (0, _) |
-                        (_, 0) |
                         (BOARD_WIDTH_EDGE, _) |
                         (_, BOARD_HEIGHT_EDGE) => Color::border(),
                         (_, _) => Color::background()
