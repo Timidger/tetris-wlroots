@@ -1,10 +1,12 @@
 #![allow(non_upper_case_globals)]
 
 extern crate rand;
+extern crate rusttype;
 #[macro_use]
 extern crate wlroots;
 
 use rand::{Rand, Rng, random};
+use rusttype::{Font, Scale};
 use std::time::Instant;
 
 use wlroots::{Area, CompositorBuilder, CompositorHandle, InputManagerHandler, KeyboardHandle,
@@ -269,16 +271,23 @@ struct Tetris {
     current: Piece,
     time: Instant,
     down: bool,
-    lost: bool
+    lost: bool,
+    font: Font<'static>,
+    score: usize
 }
 
 impl Default for Tetris {
     fn default() -> Self {
+        let font_data = include_bytes!("../Roboto-Regular.ttf");
+        let font = Font::from_bytes(font_data as &[u8])
+            .expect("Error constructing Font");
         Tetris { board: [[None; BOARD_WIDTH]; BOARD_HEIGHT],
                  current: Piece::random(),
                  time: Instant::now(),
                  down: false,
-                 lost: false }
+                 lost: false,
+                 font,
+                 score: 0 }
     }
 }
 
@@ -337,6 +346,7 @@ impl Tetris {
             *row = [None; BOARD_WIDTH]
         }
         for row_index in rows {
+            self.score += 1;
             let mut prev_index = row_index;
             for above_index in (0..(row_index + 1)).rev() {
                 self.board[prev_index] = self.board[above_index];
@@ -470,6 +480,54 @@ impl OutputHandler for Handler {
                 renderer.render_scissor(area);
                 renderer.render_colored_rect(area, Color::dead().into(), transform_matrix);
                 renderer.render_scissor(None);
+            }
+            // Render score
+            let scale = Scale::uniform(32.0);
+            let mut area = Area::new(Origin::new(0, 0), Size::new(block_width, block_height));
+            let score_str = tetris.score.to_string();
+            let v_metrics = tetris.font.v_metrics(scale);
+            // layout the glyphs in a line with 5 pixel padding
+            let glyphs: Vec<_> = tetris.font
+                .layout(score_str.as_str(), scale, rusttype::point(5.0, 5.0 + v_metrics.ascent))
+                .collect();
+            // work out the layout size
+            let glyphs_height = (v_metrics.ascent - v_metrics.descent).ceil() as u32;
+            let glyphs_width = {
+                let min_x = glyphs
+                    .first()
+                    .map(|g| g.pixel_bounding_box().unwrap().min.x)
+                    .unwrap();
+                let max_x = glyphs
+                    .last()
+                    .map(|g| g.pixel_bounding_box().unwrap().max.x)
+                    .unwrap();
+                (max_x - min_x) as u32
+            };
+            // Loop through the glyphs in the text, positing each one on a line
+            for glyph in glyphs {
+                if let Some(bounding_box) = glyph.pixel_bounding_box() {
+                    // Draw the glyph into the image per-pixel by using the draw closure
+                    let mut bytes = vec![0u8; (glyphs_width * 4 * glyphs_height) as usize];
+                    glyph.draw(|x, y, v| {
+                        let index = ((x * 4) + (y * glyphs_width * 4) ) as usize;
+                        bytes[index + 0] = (v * 255.0) as u8;
+                        bytes[index + 1] = (v * 255.0) as u8;
+                        bytes[index+ 2] = (v * 255.0) as u8;
+                    });
+                    let texture = renderer.create_texture_from_pixels(wlroots::wl_shm_format::WL_SHM_FORMAT_ARGB8888,
+                                                                      glyphs_width * 4,
+                                                                      glyphs_width,
+                                                                      glyphs_height,
+                                                                      &bytes)
+                        .expect("Could not construct texture");
+                    let transform = renderer.output.get_transform().invert();
+                    let matrix = wlroots::project_box(area,
+                                                      transform,
+                                                      0.0,
+                                                      renderer.output.transform_matrix());
+                    area.origin.x += area.size.width / 2 ;
+                    renderer.render_texture_with_matrix(&texture, matrix);
+                }
             }
         }).unwrap();
     }
