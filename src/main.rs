@@ -155,6 +155,20 @@ impl Piece {
         Piece { ty, x_offset, y_offset: 0, center, data }
     }
 
+    /// Put the piece floating to the top right
+    fn tease(mut self) -> Self {
+        self.x_offset = (BOARD_WIDTH + 2) as i32 - self.center.x / 2;
+        self.y_offset = 0;
+        self
+    }
+
+    /// Reset to the center of the screen.
+    fn reset(mut self) -> Self{
+        self.x_offset = BOARD_WIDTH as i32 / 2 - self.center.x;
+        self.y_offset = 0;
+        self
+    }
+
     /// Simulate moving a piece down
     fn move_down(mut self) -> Self {
         self.y_offset += 1;
@@ -276,6 +290,7 @@ struct Handler;
 struct Tetris {
     board: [[Option<Color>; BOARD_WIDTH]; BOARD_HEIGHT],
     current: Piece,
+    next: Piece,
     time: Instant,
     down: bool,
     lost: bool,
@@ -291,6 +306,7 @@ impl Default for Tetris {
             .expect("Error constructing Font");
         Tetris { board: [[None; BOARD_WIDTH]; BOARD_HEIGHT],
                  current: Piece::random(),
+                 next: Piece::random().tease(),
                  time: Instant::now(),
                  down: false,
                  lost: false,
@@ -394,7 +410,7 @@ impl OutputHandler for Handler {
                     for coord in tetris.current.coords().into_iter() {
                         tetris.board[coord.y as usize][coord.x as usize] = Some(color);
                     }
-                    tetris.current = Piece::random();
+                    tetris.current = std::mem::replace(&mut tetris.next, Piece::random().tease()).reset();
                     if tetris.collide(tetris.current.coords()) {
                         tetris.lost = true;
                     }
@@ -482,6 +498,22 @@ impl OutputHandler for Handler {
                 renderer.render_colored_rect(area, current_color.into(), transform_matrix);
                 renderer.render_scissor(None);
             }
+            // Render the next piece off the side
+            let current_color = tetris.next.color();
+            for block in tetris.next.coords().into_iter() {
+                let x = board_start_x + (block_width as i32 * block.x);
+                let y = board_start_y + (block_height as i32 * block.y);
+                let area = Area::new(Origin::new(x, y), block_size);
+                let mut inner_box = area;
+                inner_box.size.width -= block_width as i32 / 8;
+                inner_box.origin.x -= block_width as i32 / 8;
+                inner_box.size.height -= block_height as i32 / 8;
+                inner_box.origin.y -= block_height as i32 / 8;
+                renderer.render_scissor(inner_box);
+                renderer.render_colored_rect(area, current_color.into(), transform_matrix);
+                renderer.render_scissor(None);
+            }
+
             // Render something indicating "you died"
             if tetris.lost {
                 let area = Area::new(Origin::new(0, 0), Size::new(x_res, y_res));
