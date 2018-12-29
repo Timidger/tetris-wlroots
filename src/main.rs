@@ -388,14 +388,14 @@ impl OutputHandler for Handler {
                 *tetris = Tetris::default()
             }
             let (x_res, y_res) = output.effective_resolution();
-            let (board_start_x, mut board_start_y) = (x_res / 4, 0);
+            let board_start_x = x_res / 4;
             let renderer = compositor.renderer.as_mut().expect("No renderer");
             let mut renderer = renderer.render(output, None);
             let transform_matrix = renderer.output.transform_matrix();
             renderer.clear([0.0, 0.0, 0.0, 1.0]);
             let block_width = x_res / (BOARD_WIDTH as i32 * 2);
-            let block_height = (y_res / (BOARD_HEIGHT + 2) as i32);
-            board_start_y = block_height;
+            let block_height = y_res / (BOARD_HEIGHT + 2) as i32;
+            let board_start_y = block_height;
             // Render the border of the board
             let block_size = Size::new(block_width as i32, block_height as i32);
             for row in 0..(BOARD_WIDTH + 2) {
