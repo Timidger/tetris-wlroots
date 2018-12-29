@@ -12,7 +12,7 @@ use std::time::Instant;
 use wlroots::{Area, CompositorBuilder, CompositorHandle, InputManagerHandler, KeyboardHandle,
               KeyboardHandler, Origin, OutputBuilder, OutputBuilderResult, OutputHandle,
               OutputHandler, OutputManagerHandler, Size, key_events::KeyEvent,
-              xkbcommon::xkb::{KEY_Down, KEY_Escape, KEY_Left, KEY_Right, KEY_q as KEY_x, KEY_semicolon as KEY_z,
+              xkbcommon::xkb::{KEY_Down, KEY_Escape, KEY_Left, KEY_Right, KEY_x, KEY_z,
                                KEY_r, KEY_space},
               WLR_KEY_PRESSED};
 
